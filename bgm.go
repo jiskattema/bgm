@@ -1,6 +1,8 @@
 package main
 
 import (
+	//"encoding/json"
+	//"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -12,36 +14,91 @@ import (
 	"github.com/fhs/gompd/v2/mpd"
 )
 
-var InactiveRow = vaxis.Style{
+var InactiveFilter = vaxis.Style{
 	Foreground: vaxis.HexColor(0x00ffff),
 	Background: vaxis.HexColor(0xff0fff),
 }
 
-var ActiveRow = vaxis.Style{
+var ActiveFilter = vaxis.Style{
 	Foreground: vaxis.HexColor(0x000000),
 	Background: vaxis.HexColor(0xffffff),
 }
 
-type Row struct {
+type mpd_query struct {
+	query_id int
+	query string
+}
+
+type mpd_result struct {
+	result_id int
+	result []string
+}
+
+// struct to bundle access to the MPD daemon
+type MpdRemote struct {
+	conn *mpd.Client
+	lastQuery int
+	chQuery chan mpd_query
+	chResult chan mpd_result
+}
+
+func (m *MpdRemote) Dial() {
+	// Connect to MPD server
+	conn, err := mpd.Dial("tcp", "192.168.1.110:6600")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	m.conn = conn
+
+	// setup up channels
+	m.chQuery = make(chan mpd_query, 10)
+	m.chResult = make(chan mpd_result, 10)
+
+	// fire-off goroutine to do the querying
+	go func() {
+		for q := range(m.chQuery) {
+			lines, err := mpd_remote.conn.List(q.query)
+			if err != nil {
+				log.Fatalf("MPD error: %v", err)
+			}
+			m.chResult <- mpd_result{
+				result_id: q.query_id,
+				result: lines,
+			}
+		}
+		close(m.chResult)
+	}()
+}
+
+func (m *MpdRemote) HangUp() {
+	close(m.chQuery)
+	m.conn.Close()
+}
+
+var mpd_remote MpdRemote
+
+type Filter struct {
 	Label string
 	Count int
 	Active bool
+	current_query int
 }
 
-func NewRow(label string) *Row {
-	return &Row{
+func NewFilter(label string) *Filter {
+	return &Filter{
+		Count: 0,
 		Label: label,
 		Active: false,
 	}
 }
 
 // no-op for now
-func (r *Row) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
+func (r *Filter) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	return nil, nil
 }
 
 
-func (r *Row) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
+func (r *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	count_text := strconv.Itoa(r.Count)
 	spaces := int(ctx.Max.Width) - utf8.RuneCountInString(count_text) - utf8.RuneCountInString(r.Label)
 	full_text := r.Label + strings.Repeat(" ", spaces) + strconv.Itoa(r.Count)
@@ -49,9 +106,9 @@ func (r *Row) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	chars := ctx.Characters(full_text)
 	cells := make([]vaxis.Cell, 0, len(chars))
 
-	style := InactiveRow
+	style := InactiveFilter
 	if r.Active {
-	  style = ActiveRow
+	  style = ActiveFilter
 	}
 
 	var w int
@@ -74,9 +131,9 @@ func (r *Row) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 }
 
 type App struct {
-	Rows [5]*Row
+	Filters [6]*Filter
 	active bool
-	active_row int
+	active_filter int
 }
 
 func (a *App) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
@@ -88,55 +145,80 @@ func (a *App) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 		}
 		// Ctrl-u : halve a page up
 		if ev.Matches('u', vaxis.ModCtrl) {
-			if a.active_row > 10 {
-				a.active_row -= 10
+			if a.active_filter > 10 {
+				a.active_filter -= 10
 			} else {
-				a.active_row = 0
+				a.active_filter = 0
 			}
 		}
 		// Ctrl-d : halve a page down
 		if ev.Matches('d', vaxis.ModCtrl) {
-			if a.active_row < len(a.Rows) - 11 {
-				a.active_row += 10
+			if a.active_filter < len(a.Filters) - 11 {
+				a.active_filter += 10
 			} else {
-				a.active_row = len(a.Rows) - 1
+				a.active_filter = len(a.Filters) - 1
 			}
 		}
 		// j : down
 		if ev.Matches('j') {
-			if a.active_row < len(a.Rows) - 1 {
-				a.active_row +=1
+			if a.active_filter < len(a.Filters) - 1 {
+				a.active_filter +=1
 			}
 		}
 		// G : go to bottom
 		if ev.Matches('G') {
-			a.active_row = len(a.Rows) - 1
+			a.active_filter = len(a.Filters) - 1
 		}
 		// k : up
 		if ev.Matches('k') {
-			if a.active_row > 0 {
-				a.active_row -=1
+			if a.active_filter > 0 {
+				a.active_filter -=1
 			}
 		}
 		// g : go to top
 		if ev.Matches('g') {
-			a.active_row = 0
+			a.active_filter = 0
 		}
 		// action on current row
 		if ev.Matches(' ') {
-			a.Rows[a.active_row].Count += 1
+			var qid = mpd_remote.lastQuery + 1
+			mpd_remote.lastQuery += 1
+
+			// fire-off a query
+			mpd_remote.chQuery <- mpd_query{
+				query_id: qid,
+				query: a.Filters[a.active_filter].Label,
+			}
+			// save the query id to match against the result_id later
+			a.Filters[a.active_filter].current_query = qid
 		}
 	}
-	for pos, row := range(a.Rows) {
-		row.Active = (pos == a.active_row)
+	for pos, row := range(a.Filters) {
+		row.Active = (pos == a.active_filter)
 	}
 	return nil, nil
 }
 
 func (a *App) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
+
+	// check if there are updates from the mpd_remote
+	Poll:
+	for {
+		select {
+		case r := <- mpd_remote.chResult :
+			for _, row := range(a.Filters) {
+				if row.current_query == r.result_id {
+					row.Count = len(r.result)
+				}
+			}
+		default:
+			break Poll
+		}
+	}
+
 	root := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, a)
 
-	for pos, row := range(a.Rows) {
+	for pos, row := range(a.Filters) {
 		surf, err := row.Draw(ctx)
 		if err != nil {
 			return vxfw.Surface{}, err
@@ -147,26 +229,7 @@ func (a *App) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	return root, nil
 }
 
-type MpdRemote struct {
-	conn *mpd.Client
-}
-
-func (m *MpdRemote) Dial() {
-	// Connect to MPD server
-	conn, err := mpd.Dial("tcp", "192.168.1.110:6600")
-	if err != nil {
-		log.Fatalln(err)
-	}
-	m.conn = conn
-}
-
-func (m *MpdRemote) HangUp() {
-	m.conn.Close()
-}
-
 func main() {
-	var mpd_remote MpdRemote
-	
 	mpd_remote.Dial()
 	defer mpd_remote.HangUp()
 
@@ -176,15 +239,16 @@ func main() {
 	}
 
 	root := &App{
-		Rows: [5]*Row{
-			NewRow("Artist"),
-			NewRow("Album"),
-			NewRow("Track"),
-			NewRow("Length"),
-			NewRow("Year"),
+		Filters: [6]*Filter{
+			NewFilter("Artist"),
+			NewFilter("Album"),
+			NewFilter("Track"),
+			NewFilter("Title"),
+			NewFilter("Label"),
+			NewFilter("Date"),
 		},
 		active: true,
-		active_row: 2,
+		active_filter: 2,
 	}
 
 	app.Run(root)
