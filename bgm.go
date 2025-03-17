@@ -42,6 +42,12 @@ type MpdRemote struct {
 	chResult chan mpd_result
 }
 
+func (m *MpdRemote) newQueryId() (int) {
+	qid := m.lastQuery + 1
+	m.lastQuery += 1
+	return qid
+}
+
 func (m *MpdRemote) Dial() {
 	// Connect to MPD server
 	conn, err := mpd.Dial("tcp", "192.168.1.110:6600")
@@ -84,14 +90,6 @@ type Filter struct {
 	current_query int
 }
 
-func NewFilter(label string) *Filter {
-	return &Filter{
-		Count: 0,
-		Label: label,
-		Active: false,
-	}
-}
-
 // no-op for now
 func (r *Filter) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	return nil, nil
@@ -131,7 +129,7 @@ func (r *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 }
 
 type App struct {
-	Filters [6]*Filter
+	Filters [6]Filter
 	active bool
 	active_filter int
 }
@@ -179,22 +177,25 @@ func (a *App) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 		if ev.Matches('g') {
 			a.active_filter = 0
 		}
-		// action on current row
+		// action on current filter
 		if ev.Matches(' ') {
-			var qid = mpd_remote.lastQuery + 1
-			mpd_remote.lastQuery += 1
+			var qid = mpd_remote.newQueryId()
+
+			// save the query id to match against the result_id later
+			filter := a.Filters[a.active_filter]
+			filter.current_query = qid
 
 			// fire-off a query
 			mpd_remote.chQuery <- mpd_query{
 				query_id: qid,
-				query: a.Filters[a.active_filter].Label,
+				query: filter.Label,
 			}
-			// save the query id to match against the result_id later
-			a.Filters[a.active_filter].current_query = qid
 		}
 	}
-	for pos, row := range(a.Filters) {
-		row.Active = (pos == a.active_filter)
+	print(a.active_filter)
+	for pos, filter := range(a.Filters) {
+		filter.Active = (pos == a.active_filter)
+		print(filter.Active)
 	}
 	return nil, nil
 }
@@ -206,9 +207,9 @@ func (a *App) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	for {
 		select {
 		case r := <- mpd_remote.chResult :
-			for _, row := range(a.Filters) {
-				if row.current_query == r.result_id {
-					row.Count = len(r.result)
+			for _, filter := range(a.Filters) {
+				if filter.current_query == r.result_id {
+					filter.Count = len(r.result)
 				}
 			}
 		default:
@@ -218,8 +219,8 @@ func (a *App) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 
 	root := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, a)
 
-	for pos, row := range(a.Filters) {
-		surf, err := row.Draw(ctx)
+	for pos, filter := range(a.Filters) {
+		surf, err := filter.Draw(ctx)
 		if err != nil {
 			return vxfw.Surface{}, err
 		}
@@ -239,17 +240,18 @@ func main() {
 	}
 
 	root := &App{
-		Filters: [6]*Filter{
-			NewFilter("Artist"),
-			NewFilter("Album"),
-			NewFilter("Track"),
-			NewFilter("Title"),
-			NewFilter("Label"),
-			NewFilter("Date"),
+		Filters: [6]Filter{
+			{ Label: "Artist", },
+			{ Label: "Album", },
+			{ Label: "Track", },
+			{ Label: "Title", },
+			{ Label: "Label", },
+			{ Label: "Date", },
 		},
 		active: true,
-		active_filter: 2,
 	}
+
+	root.Filters[root.active_filter].Active = true
 
 	app.Run(root)
 }
