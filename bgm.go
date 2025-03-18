@@ -36,7 +36,6 @@ type mpd_result struct {
 
 // struct to bundle access to the MPD daemon
 type MpdRemote struct {
-	conn *mpd.Client
 	lastQuery int
 	chQuery chan mpd_query
 	chResult chan mpd_result
@@ -49,21 +48,21 @@ func (m *MpdRemote) newQueryId() (int) {
 }
 
 func (m *MpdRemote) Dial() {
-	// Connect to MPD server
-	conn, err := mpd.Dial("tcp", "192.168.1.110:6600")
-	if err != nil {
-		log.Fatalln(err)
-	}
-	m.conn = conn
-
 	// setup up channels
 	m.chQuery = make(chan mpd_query, 10)
 	m.chResult = make(chan mpd_result, 10)
 
 	// fire-off goroutine to do the querying
 	go func() {
+		// Connect to MPD server
+		conn, err := mpd.Dial("tcp", "192.168.1.110:6600")
+		if err != nil {
+			log.Fatalln(err)
+		}
+		defer conn.Close()
+
 		for q := range(m.chQuery) {
-			lines, err := mpd_remote.conn.List(q.query)
+			lines, err := conn.List(q.query)
 			if err != nil {
 				log.Fatalf("MPD error: %v", err)
 			}
@@ -78,10 +77,10 @@ func (m *MpdRemote) Dial() {
 
 func (m *MpdRemote) HangUp() {
 	close(m.chQuery)
-	m.conn.Close()
 }
 
 var mpd_remote MpdRemote
+var app *vxfw.App
 
 type Filter struct {
 	Label string
@@ -96,16 +95,16 @@ func (r *Filter) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 }
 
 
-func (r *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
-	count_text := strconv.Itoa(r.Count)
-	spaces := int(ctx.Max.Width) - utf8.RuneCountInString(count_text) - utf8.RuneCountInString(r.Label)
-	full_text := r.Label + strings.Repeat(" ", spaces) + strconv.Itoa(r.Count)
+func (f *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
+	count_text := strconv.Itoa(f.Count)
+	spaces := int(ctx.Max.Width) - utf8.RuneCountInString(count_text) - utf8.RuneCountInString(f.Label)
+	full_text := f.Label + strings.Repeat(" ", spaces) + strconv.Itoa(f.Count)
 
 	chars := ctx.Characters(full_text)
 	cells := make([]vaxis.Cell, 0, len(chars))
 
 	style := InactiveFilter
-	if r.Active {
+	if f.Active {
 	  style = ActiveFilter
 	}
 
@@ -121,20 +120,20 @@ func (r *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 
 	return vxfw.Surface{
 		Size: vxfw.Size{Width: uint16(w), Height: 1}, 
-		Widget: r,
+		Widget: f,
 		Cursor: nil,
 		Buffer: cells,
 		Children: []vxfw.SubSurface{},
 	}, nil
 }
 
-type App struct {
+type Bgm struct {
 	Filters [6]Filter
 	active bool
-	active_filter int
+	cursor int
 }
 
-func (a *App) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
+func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	switch ev := ev.(type) {
 	case vaxis.Key:
 		// Ctrl-C : quit
@@ -143,71 +142,68 @@ func (a *App) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 		}
 		// Ctrl-u : halve a page up
 		if ev.Matches('u', vaxis.ModCtrl) {
-			if a.active_filter > 10 {
-				a.active_filter -= 10
+			if b.cursor > 10 {
+				b.cursor -= 10
 			} else {
-				a.active_filter = 0
+				b.cursor = 0
 			}
 		}
 		// Ctrl-d : halve a page down
 		if ev.Matches('d', vaxis.ModCtrl) {
-			if a.active_filter < len(a.Filters) - 11 {
-				a.active_filter += 10
+			if b.cursor < len(b.Filters) - 11 {
+				b.cursor += 10
 			} else {
-				a.active_filter = len(a.Filters) - 1
+				b.cursor = len(b.Filters) - 1
 			}
 		}
 		// j : down
 		if ev.Matches('j') {
-			if a.active_filter < len(a.Filters) - 1 {
-				a.active_filter +=1
+			if b.cursor < len(b.Filters) - 1 {
+				b.cursor +=1
 			}
 		}
 		// G : go to bottom
 		if ev.Matches('G') {
-			a.active_filter = len(a.Filters) - 1
+			b.cursor = len(b.Filters) - 1
 		}
 		// k : up
 		if ev.Matches('k') {
-			if a.active_filter > 0 {
-				a.active_filter -=1
+			if b.cursor > 0 {
+				b.cursor -=1
 			}
 		}
 		// g : go to top
 		if ev.Matches('g') {
-			a.active_filter = 0
+			b.cursor = 0
 		}
 		// action on current filter
 		if ev.Matches(' ') {
 			var qid = mpd_remote.newQueryId()
 
 			// save the query id to match against the result_id later
-			filter := a.Filters[a.active_filter]
+			filter := b.Filters[b.cursor]
 			filter.current_query = qid
 
 			// fire-off a query
 			mpd_remote.chQuery <- mpd_query{
-				query_id: qid,
+			query_id: qid,
 				query: filter.Label,
 			}
 		}
 	}
-	print(a.active_filter)
-	for pos, filter := range(a.Filters) {
-		filter.Active = (pos == a.active_filter)
-		print(filter.Active)
+	for pos, filter := range(b.Filters) {
+		filter.Active = (pos == b.cursor)
 	}
-	return nil, nil
+	return vxfw.RedrawCmd{}, nil
 }
 
-func (a *App) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
-
+func (b *Bgm) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	// check if there are updates from the mpd_remote
 	Poll:
 	for {
 		select {
 		case r := <- mpd_remote.chResult :
-			for _, filter := range(a.Filters) {
+			for _, filter := range(b.Filters) {
 				if filter.current_query == r.result_id {
 					filter.Count = len(r.result)
 				}
@@ -217,9 +213,9 @@ func (a *App) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 		}
 	}
 
-	root := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, a)
+	root := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, b)
 
-	for pos, filter := range(a.Filters) {
+	for pos, filter := range(b.Filters) {
 		surf, err := filter.Draw(ctx)
 		if err != nil {
 			return vxfw.Surface{}, err
@@ -239,7 +235,7 @@ func main() {
 		log.Fatalf("Couldn't create a new app: %v", err)
 	}
 
-	root := &App{
+	root := &Bgm{
 		Filters: [6]Filter{
 			{ Label: "Artist", },
 			{ Label: "Album", },
@@ -249,9 +245,10 @@ func main() {
 			{ Label: "Date", },
 		},
 		active: true,
+		cursor: 1,
 	}
 
-	root.Filters[root.active_filter].Active = true
+	root.Filters[root.cursor].Active = true
 
 	app.Run(root)
 }
