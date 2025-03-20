@@ -24,6 +24,15 @@ var ActiveFilter = vaxis.Style{
 	Background: vaxis.HexColor(0xffffff),
 }
 
+var MpdFilters = [6]*Filter{
+	{ Label: "Artist", },
+	{ Label: "Album", },
+	{ Label: "Track", },
+	{ Label: "Title", },
+	{ Label: "Label", },
+	{ Label: "Date", },
+}
+
 type mpd_query struct {
 	query_id int
 	query string
@@ -91,7 +100,7 @@ type Filter struct {
 
 // no-op for now
 func (r *Filter) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
-	return nil, nil
+	return vxfw.RedrawCmd{}, nil
 }
 
 
@@ -128,7 +137,7 @@ func (f *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 }
 
 type Bgm struct {
-	Filters [6]Filter
+	Filters []*Filter
 	active bool
 	cursor int
 }
@@ -194,6 +203,7 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 	for pos, filter := range(b.Filters) {
 		filter.Active = (pos == b.cursor)
 	}
+
 	return vxfw.RedrawCmd{}, nil
 }
 
@@ -236,18 +246,11 @@ func main() {
 	}
 
 	root := &Bgm{
-		Filters: [6]Filter{
-			{ Label: "Artist", },
-			{ Label: "Album", },
-			{ Label: "Track", },
-			{ Label: "Title", },
-			{ Label: "Label", },
-			{ Label: "Date", },
-		},
 		active: true,
 		cursor: 1,
 	}
 
+	root.Filters = MpdFilters[:]
 	root.Filters[root.cursor].Active = true
 
 	app.Run(root)
