@@ -7,11 +7,12 @@ import (
 
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
+	"git.sr.ht/~rockorager/vaxis/vxfw/textfield"
 )
 
 type Bgm struct {
 	Filters []*Filter
-	active  bool
+	input   *textfield.TextField
 	cursor  int
 }
 
@@ -22,7 +23,7 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 		if ev.Matches('c', vaxis.ModCtrl) {
 			return vxfw.QuitCmd{}, nil
 		}
-		// Ctrl-u : halve a page up
+		// Ctrl-u : half a page up
 		if ev.Matches('u', vaxis.ModCtrl) {
 			if b.cursor > 10 {
 				b.cursor -= 10
@@ -30,7 +31,7 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 				b.cursor = 0
 			}
 		}
-		// Ctrl-d : halve a page down
+		// Ctrl-d : half a page down
 		if ev.Matches('d', vaxis.ModCtrl) {
 			if b.cursor < len(b.Filters)-11 {
 				b.cursor += 10
@@ -58,6 +59,19 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 		if ev.Matches('g') {
 			b.cursor = 0
 		}
+		// / : search
+		if ev.Matches('/') {
+			// Set callback
+			b.input.OnSubmit = func(line string) (vxfw.Command, error) {
+				b.Filters[b.cursor].Value = line
+				b.input.OnSubmit = nil
+				return vxfw.FocusWidgetCmd(b), nil
+			}
+			// Focus the input widget
+			b.input.Reset()
+			b.input.InsertStringAtCursor(b.Filters[b.cursor].Value)
+			return vxfw.FocusWidgetCmd(b.input), nil
+		}
 		// action on current filter
 		if ev.Matches(' ') {
 			var qid = mpd_remote.newQueryId()
@@ -69,7 +83,8 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 			// fire-off a query
 			mpd_remote.chQuery <- mpd_query{
 				query_id: qid,
-				query:    filter.Label,
+				tag:      filter.Label,
+				query:    filter.Value,
 			}
 		}
 	}
@@ -101,10 +116,18 @@ Poll:
 	for pos, filter := range b.Filters {
 		surf, err := filter.Draw(ctx)
 		if err != nil {
-			return vxfw.Surface{}, err
+			return root, err
 		}
 		root.AddChild(0, pos, surf)
 	}
+
+	// Note: the example creates a new context to set surface sizes
+	s, err := b.input.Draw(ctx)
+	if err != nil {
+		return root, err
+	}
+	// root.AddChild(0, len(b.Filters), s)
+	root.AddChild(0, int(ctx.Max.Height-1), s)
 
 	return root, nil
 }
@@ -116,17 +139,17 @@ func main() {
 	mpd_remote.Dial()
 	defer mpd_remote.HangUp()
 
-	app, err := vxfw.NewApp()
+	app, err := vxfw.NewApp(vaxis.Options{})
 	if err != nil {
 		log.Fatalf("Couldn't create a new app: %v", err)
 	}
 
 	root := &Bgm{
-		active: true,
-		cursor: 1,
+		cursor:  1,
+		Filters: MpdFilters[:],
+		input:   &textfield.TextField{},
 	}
 
-	root.Filters = MpdFilters[:]
 	root.Filters[root.cursor].Active = true
 
 	app.Run(root)

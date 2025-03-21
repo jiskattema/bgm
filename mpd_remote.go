@@ -2,8 +2,9 @@ package main
 
 import (
 	//"encoding/json"
-	//"fmt"
+	"fmt"
 	"log"
+	"strings"
 
 	"github.com/fhs/gompd/v2/mpd"
 )
@@ -19,6 +20,7 @@ var MpdFilters = [6]*Filter{
 
 type mpd_query struct {
 	query_id int
+	tag      string
 	query    string
 }
 
@@ -45,18 +47,23 @@ func (m *MpdRemote) Dial() {
 	m.chQuery = make(chan mpd_query, 10)
 	m.chResult = make(chan mpd_result, 10)
 
+	illegalChars := strings.NewReplacer("'", `\'`, `"`, `\"`)
+
 	// fire-off goroutine to do the querying
 	go func() {
 		// Connect to MPD server
-		conn, err := mpd.Dial("tcp", "192.168.1.110:6600")
+		conn, err := mpd.Dial("tcp", "localhost:6600")
 		if err != nil {
 			log.Fatalln(err)
 		}
 		defer conn.Close()
 
 		for q := range m.chQuery {
-			lines, err := conn.List(q.query)
+			quoted := illegalChars.Replace(q.query)
+			formatted := fmt.Sprintf("(%s contains '%s')", q.tag, quoted)
+			lines, err := conn.List(q.tag, formatted)
 			if err != nil {
+				log.Printf("Failed: %s", formatted)
 				log.Fatalf("MPD error: %v", err)
 			}
 			m.chResult <- mpd_result{

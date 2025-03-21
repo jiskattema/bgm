@@ -23,20 +23,24 @@ var ActiveFilter = vaxis.Style{
 
 type Filter struct {
 	Label         string
+	Value         string
 	Count         int
 	Active        bool
 	current_query int
 }
 
 // no-op for now
-func (r *Filter) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
+func (f *Filter) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	return nil, nil
 }
 
 func (f *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	count_text := strconv.Itoa(f.Count)
-	spaces := int(ctx.Max.Width) - utf8.RuneCountInString(count_text) - utf8.RuneCountInString(f.Label)
-	full_text := f.Label + strings.Repeat(" ", spaces) + strconv.Itoa(f.Count)
+	spaces := int(ctx.Max.Width) -
+		utf8.RuneCountInString(count_text) -
+		utf8.RuneCountInString(f.Value) -
+		utf8.RuneCountInString(f.Label)
+	full_text := f.Label + f.Value + strings.Repeat(" ", spaces) + strconv.Itoa(f.Count)
 
 	chars := ctx.Characters(full_text)
 	cells := make([]vaxis.Cell, 0, len(chars))
