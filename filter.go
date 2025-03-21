@@ -24,9 +24,9 @@ var ActiveFilter = vaxis.Style{
 type Filter struct {
 	Label         string
 	Value         string
-	Count         int
 	Active        bool
 	current_query int
+	matches       []string
 }
 
 // no-op for now
@@ -35,12 +35,19 @@ func (f *Filter) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 }
 
 func (f *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
-	count_text := strconv.Itoa(f.Count)
+	var count_text string
+
+	if len(f.matches) == 1 {
+		count_text = f.matches[0]
+	} else {
+		count_text = strconv.Itoa(len(f.matches))
+	}
+
 	spaces := int(ctx.Max.Width) -
 		utf8.RuneCountInString(count_text) -
 		utf8.RuneCountInString(f.Value) -
 		utf8.RuneCountInString(f.Label)
-	full_text := f.Label + f.Value + strings.Repeat(" ", spaces) + strconv.Itoa(f.Count)
+	full_text := f.Label + f.Value + strings.Repeat(" ", spaces) + count_text
 
 	chars := ctx.Characters(full_text)
 	cells := make([]vaxis.Cell, 0, len(chars))

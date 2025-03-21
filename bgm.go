@@ -103,7 +103,7 @@ Poll:
 		case r := <-mpd_remote.chResult:
 			for _, filter := range b.Filters {
 				if filter.current_query == r.result_id {
-					filter.Count = len(r.result)
+					filter.matches = r.result
 				}
 			}
 		default:
