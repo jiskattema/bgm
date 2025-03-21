@@ -40,23 +40,23 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 			}
 		}
 		// j : down
-		if ev.Matches('j') {
+		if ev.Matches('j') || ev.Matches(vaxis.KeyDown) {
 			if b.cursor < len(b.Filters)-1 {
 				b.cursor += 1
 			}
 		}
 		// G : go to bottom
-		if ev.Matches('G') {
+		if ev.Matches('G') || ev.Matches(vaxis.KeyEnd) {
 			b.cursor = len(b.Filters) - 1
 		}
 		// k : up
-		if ev.Matches('k') {
+		if ev.Matches('k') || ev.Matches(vaxis.KeyUp) {
 			if b.cursor > 0 {
 				b.cursor -= 1
 			}
 		}
 		// g : go to top
-		if ev.Matches('g') {
+		if ev.Matches('g') || ev.Matches(vaxis.KeyHome) {
 			b.cursor = 0
 		}
 		// / : search
