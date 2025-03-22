@@ -8,6 +8,8 @@ import (
 
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
+	"git.sr.ht/~rockorager/vaxis/vxfw/list"
+	"git.sr.ht/~rockorager/vaxis/vxfw/text"
 	"git.sr.ht/~rockorager/vaxis/vxfw/textfield"
 )
 
@@ -15,6 +17,7 @@ type Bgm struct {
 	Filters []*Filter
 	input   *textfield.TextField
 	cursor  int
+	list    list.Dynamic
 }
 
 func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
@@ -64,22 +67,22 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 		if ev.Matches('p', vaxis.ModCtrl) {
 			if b.cursor > 0 {
 				s := reflect.Swapper(b.Filters)
-				s(b.cursor - 1, b.cursor)
+				s(b.cursor-1, b.cursor)
 				b.cursor -= 1
 			}
 		}
 		// Ctrl-n : move filter down
 		if ev.Matches('n', vaxis.ModCtrl) {
-			if b.cursor < len(b.Filters) - 1 {
+			if b.cursor < len(b.Filters)-1 {
 				s := reflect.Swapper(b.Filters)
-				s(b.cursor, b.cursor + 1)
+				s(b.cursor, b.cursor+1)
 				b.cursor += 1
 			}
 		}
 		// Ctrl-t : move filter to top
 		if ev.Matches('t', vaxis.ModCtrl) {
 			s := reflect.Swapper(b.Filters)
-			for p := b.cursor; p > 0; p -=1 {
+			for p := b.cursor; p > 0; p -= 1 {
 				s(p, p-1)
 			}
 			b.cursor = 0
@@ -87,15 +90,14 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 		// Ctrl-b : move filter to bottom
 		if ev.Matches('b', vaxis.ModCtrl) {
 			s := reflect.Swapper(b.Filters)
-			for p := b.cursor; p < len(b.Filters) - 1; p +=1 {
+			for p := b.cursor; p < len(b.Filters)-1; p += 1 {
 				s(p, p+1)
 			}
 		}
 		// Enter : show matches for current filter in bottom pane
 		if ev.Matches(vaxis.KeyEnter) {
-			for _, m := range(b.Filters[b.cursor].matches) {
-				print(m)
-			}
+			items = b.Filters[b.cursor].matches[:]
+			b.list.SetCursor(0)
 		}
 		// ] : select next match
 		if ev.Matches(']') {
@@ -141,12 +143,40 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 				query:    filter.Value,
 			}
 		}
+		// Tab : focus on bottom panel
+		if ev.Matches(vaxis.KeyTab) {
+			return vxfw.FocusWidgetCmd(&b.list), nil
+		}
+		// Esc : focus on top panel
+		if ev.Matches(vaxis.KeyEsc) {
+			return vxfw.FocusWidgetCmd(b), nil
+		}
 	}
 	for pos, filter := range b.Filters {
 		filter.Active = (pos == b.cursor)
 	}
 
 	return vxfw.RedrawCmd{}, nil
+}
+
+func getWidget(i uint, cursor uint) vxfw.Widget {
+	if i >= uint(len(items)) {
+		return nil
+	}
+	var style vaxis.Style
+	if i == cursor {
+		style.Attribute = vaxis.AttrReverse
+	}
+	var display_text string
+	if items[i] == "" {
+		display_text = "[Unknown]"
+	} else {
+		display_text = items[i]
+	}
+	return &text.Text{
+		Content: display_text,
+		Style:   style,
+	}
 }
 
 func (b *Bgm) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
@@ -176,19 +206,30 @@ Poll:
 		root.AddChild(0, pos, surf)
 	}
 
-	// Note: the example creates a new context to set surface sizes
-	s, err := b.input.Draw(ctx)
+	panel_size := vxfw.Size{Width: ctx.Max.Width, Height: 1}
+
+	// The commandline
+	panel_size.Height = 1
+	s, err := b.input.Draw(vxfw.DrawContext{Min: panel_size, Max: panel_size, Characters: ctx.Characters})
 	if err != nil {
 		return root, err
 	}
-	// root.AddChild(0, len(b.Filters), s)
 	root.AddChild(0, int(ctx.Max.Height-1), s)
+
+	// full item list
+	panel_size.Height = ctx.Max.Height - uint16(len(b.Filters)) - 1
+	s, err = b.list.Draw(vxfw.DrawContext{Min: panel_size, Max: panel_size, Characters: ctx.Characters})
+	if err != nil {
+		return root, err
+	}
+	root.AddChild(0, len(b.Filters), s)
 
 	return root, nil
 }
 
 var app *vxfw.App
 var mpd_remote MpdRemote
+var	items []string
 
 func main() {
 	mpd_remote.Dial()
@@ -203,6 +244,12 @@ func main() {
 		cursor:  1,
 		Filters: MpdFilters[:],
 		input:   &textfield.TextField{},
+		list: list.Dynamic{
+			Builder:              getWidget,
+			DrawCursor:           false,
+			Gap:                  0,
+			DisableEventHandlers: true,
+		},
 	}
 
 	root.Filters[root.cursor].Active = true
