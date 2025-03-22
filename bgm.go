@@ -4,6 +4,7 @@ import (
 	//"encoding/json"
 	//"fmt"
 	"log"
+	"reflect"
 
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
@@ -59,6 +60,59 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 		if ev.Matches('g') || ev.Matches(vaxis.KeyHome) {
 			b.cursor = 0
 		}
+		// Ctrl-p : move filter up
+		if ev.Matches('p', vaxis.ModCtrl) {
+			if b.cursor > 0 {
+				s := reflect.Swapper(b.Filters)
+				s(b.cursor - 1, b.cursor)
+				b.cursor -= 1
+			}
+		}
+		// Ctrl-n : move filter down
+		if ev.Matches('n', vaxis.ModCtrl) {
+			if b.cursor < len(b.Filters) - 1 {
+				s := reflect.Swapper(b.Filters)
+				s(b.cursor, b.cursor + 1)
+				b.cursor += 1
+			}
+		}
+		// Ctrl-t : move filter to top
+		if ev.Matches('t', vaxis.ModCtrl) {
+			s := reflect.Swapper(b.Filters)
+			for p := b.cursor; p > 0; p -=1 {
+				s(p, p-1)
+			}
+			b.cursor = 0
+		}
+		// Ctrl-b : move filter to bottom
+		if ev.Matches('b', vaxis.ModCtrl) {
+			s := reflect.Swapper(b.Filters)
+			for p := b.cursor; p < len(b.Filters) - 1; p +=1 {
+				s(p, p+1)
+			}
+		}
+		// Enter : show matches for current filter in bottom pane
+		if ev.Matches(vaxis.KeyEnter) {
+			for _, m := range(b.Filters[b.cursor].matches) {
+				print(m)
+			}
+		}
+		// ] : select next match
+		if ev.Matches(']') {
+			cursor := b.Filters[b.cursor].cursor + 1
+			if cursor >= len(b.Filters[b.cursor].matches) {
+				cursor = -1
+			}
+			b.Filters[b.cursor].cursor = cursor
+		}
+		// [ : select previous match
+		if ev.Matches('[') {
+			cursor := b.Filters[b.cursor].cursor - 1
+			if cursor < -1 {
+				cursor = len(b.Filters[b.cursor].matches) - 1
+			}
+			b.Filters[b.cursor].cursor = cursor
+		}
 		// / : search
 		if ev.Matches('/') {
 			// Set callback
@@ -104,6 +158,7 @@ Poll:
 			for _, filter := range b.Filters {
 				if filter.current_query == r.result_id {
 					filter.matches = r.result
+					filter.cursor = -1
 				}
 			}
 		default:

@@ -2,7 +2,7 @@ package main
 
 import (
 	//"encoding/json"
-	//"fmt"
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -27,6 +27,7 @@ type Filter struct {
 	Active        bool
 	current_query int
 	matches       []string
+	cursor        int
 }
 
 // no-op for now
@@ -40,7 +41,11 @@ func (f *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	if len(f.matches) == 1 {
 		count_text = f.matches[0]
 	} else {
-		count_text = strconv.Itoa(len(f.matches))
+		if (f.cursor >= 0 && f.cursor < len(f.matches)) {
+			count_text = fmt.Sprintf("%s [%d of %d]", f.matches[f.cursor], f.cursor, len(f.matches))
+		} else {
+			count_text = strconv.Itoa(len(f.matches))
+		}
 	}
 
 	spaces := int(ctx.Max.Width) -
