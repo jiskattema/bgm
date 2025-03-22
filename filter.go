@@ -41,7 +41,7 @@ func (f *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	if len(f.matches) == 1 {
 		count_text = fmt.Sprintf("%s [only]", f.matches[0])
 	} else {
-		if (f.cursor >= 0 && f.cursor < len(f.matches)) {
+		if f.cursor >= 0 && f.cursor < len(f.matches) {
 			count_text = fmt.Sprintf("%s [%d of %d]", f.matches[f.cursor], f.cursor, len(f.matches))
 		} else {
 			count_text = strconv.Itoa(len(f.matches))

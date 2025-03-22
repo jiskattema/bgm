@@ -136,11 +136,32 @@ func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, 
 			filter := b.Filters[b.cursor]
 			filter.current_query = qid
 
+			// create tag + query pairs for each filter up-to and including the cursor
+			tq := make([]tag_query, b.cursor+1)
+			for i := 0; i <= b.cursor; i++ {
+				f := b.Filters[i]
+				if f.cursor >= 0 && len(f.matches) > f.cursor {
+					// exact match of value at cursor
+					tq = append(tq, tag_query{
+						tag:   f.Label,
+						op:    "==",
+						query: f.matches[f.cursor],
+					})
+				} else {
+					// search for value using 'contains'
+					tq = append(tq, tag_query{
+						tag:   f.Label,
+						op:    "contains",
+						query: f.Value,
+					})
+				}
+			}
+
 			// fire-off a query
 			mpd_remote.chQuery <- mpd_query{
-				query_id: qid,
-				tag:      filter.Label,
-				query:    filter.Value,
+				query_id:    qid,
+				tag:         filter.Label,
+				constraints: tq,
 			}
 		}
 		// Tab : focus on bottom panel
@@ -229,7 +250,7 @@ Poll:
 
 var app *vxfw.App
 var mpd_remote MpdRemote
-var	items []string
+var items []string
 
 func main() {
 	mpd_remote.Dial()
@@ -241,7 +262,7 @@ func main() {
 	}
 
 	root := &Bgm{
-		cursor:  1,
+		cursor:  0,
 		Filters: MpdFilters[:],
 		input:   &textfield.TextField{},
 		list: list.Dynamic{
@@ -251,8 +272,6 @@ func main() {
 			DisableEventHandlers: true,
 		},
 	}
-
-	root.Filters[root.cursor].Active = true
 
 	app.Run(root)
 }

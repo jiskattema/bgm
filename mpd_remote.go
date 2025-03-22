@@ -2,7 +2,6 @@ package main
 
 import (
 	//"encoding/json"
-	"fmt"
 	"log"
 	"strings"
 
@@ -18,10 +17,16 @@ var MpdFilters = [6]*Filter{
 	{Label: "Date"},
 }
 
+type tag_query struct {
+	tag   string
+	op    string
+	query string
+}
+
 type mpd_query struct {
-	query_id int
-	tag      string
-	query    string
+	query_id    int
+	tag         string
+	constraints []tag_query
 }
 
 type mpd_result struct {
@@ -59,11 +64,31 @@ func (m *MpdRemote) Dial() {
 		defer conn.Close()
 
 		for q := range m.chQuery {
-			quoted := illegalChars.Replace(q.query)
-			formatted := fmt.Sprintf("(%s contains '%s')", q.tag, quoted)
-			lines, err := conn.List(q.tag, formatted)
+			var sb strings.Builder
+			ccount := 0
+
+			sb.WriteString("(")
+			for _, tq := range q.constraints {
+				if tq.query != "" {
+					if ccount > 0 {
+						sb.WriteString(" AND ")
+					}
+					sb.WriteString("(" + tq.tag + " " + tq.op + " '" + illegalChars.Replace(tq.query) + "')")
+					ccount += 1
+				}
+			}
+			sb.WriteString(")")
+
+			var lines []string
+
+			if ccount > 0 {
+				lines, err = conn.List(q.tag, sb.String())
+			} else {
+				lines, err = conn.List(q.tag)
+			}
+
 			if err != nil {
-				log.Printf("Failed: %s", formatted)
+				log.Printf("Failed: %s", sb.String())
 				log.Fatalf("MPD error: %v", err)
 			}
 			m.chResult <- mpd_result{
