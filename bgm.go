@@ -6,6 +6,7 @@ import (
 	"log"
 	"reflect"
 
+	"ash/bgm/widgets/root"
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
 	"git.sr.ht/~rockorager/vaxis/vxfw/list"
@@ -23,10 +24,6 @@ type Bgm struct {
 func (b *Bgm) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	switch ev := ev.(type) {
 	case vaxis.Key:
-		// Ctrl-C : quit
-		if ev.Matches('c', vaxis.ModCtrl) {
-			return vxfw.QuitCmd{}, nil
-		}
 		// Ctrl-u : half a page up
 		if ev.Matches('u', vaxis.ModCtrl) {
 			if b.cursor > 10 {
@@ -218,33 +215,6 @@ Poll:
 	}
 
 	root := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, b)
-
-	for pos, filter := range b.Filters {
-		surf, err := filter.Draw(ctx)
-		if err != nil {
-			return root, err
-		}
-		root.AddChild(0, pos, surf)
-	}
-
-	panel_size := vxfw.Size{Width: ctx.Max.Width, Height: 1}
-
-	// The commandline
-	panel_size.Height = 1
-	s, err := b.input.Draw(vxfw.DrawContext{Min: panel_size, Max: panel_size, Characters: ctx.Characters})
-	if err != nil {
-		return root, err
-	}
-	root.AddChild(0, int(ctx.Max.Height-1), s)
-
-	// full item list
-	panel_size.Height = ctx.Max.Height - uint16(len(b.Filters)) - 1
-	s, err = b.list.Draw(vxfw.DrawContext{Min: panel_size, Max: panel_size, Characters: ctx.Characters})
-	if err != nil {
-		return root, err
-	}
-	root.AddChild(0, len(b.Filters), s)
-
 	return root, nil
 }
 
