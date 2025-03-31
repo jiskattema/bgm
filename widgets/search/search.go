@@ -22,14 +22,25 @@ type Search struct {
 }
 
 func New() *Search{
-	return &Search{
+	filters := make([]*Filter, len(remote.Tags))
+	for _, name:= range(remote.Tags) {
+		filters = append(
+			filters,
+			&Filter{Label: name},
+		)
+	}
+
+	s := &Search{
 		list: list.Dynamic{
 			Builder:              getWidget,
 			DrawCursor:           false,
 			Gap:                  0,
 			DisableEventHandlers: true,
 		},
+		Filters: filters,
 	}
+
+	return s
 }
 
 // Noop for text

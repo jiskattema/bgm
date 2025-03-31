@@ -23,6 +23,6 @@ type Remote interface {
 	PostQuery(tag string, constraints []Constraint) int
 }
 
-var Filters = [6]string {
+var Tags = [6]string {
 	"Artist", "Album", "Track", "Title", "Label", "Date",
 }
