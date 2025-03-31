@@ -25,9 +25,9 @@ type Filter struct {
 	Label         string
 	Value         string
 	Active        bool
-	current_query int
-	matches       []string
-	cursor        int
+	Current_query int
+	Matches       []string
+	Cursor        int
 }
 
 // no-op for now
@@ -38,13 +38,13 @@ func (f *Filter) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 func (f *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	var count_text string
 
-	if len(f.matches) == 1 {
-		count_text = fmt.Sprintf("%s [only]", f.matches[0])
+	if len(f.Matches) == 1 {
+		count_text = fmt.Sprintf("%s [only]", f.Matches[0])
 	} else {
-		if f.cursor >= 0 && f.cursor < len(f.matches) {
-			count_text = fmt.Sprintf("%s [%d of %d]", f.matches[f.cursor], f.cursor, len(f.matches))
+		if f.Cursor >= 0 && f.Cursor < len(f.Matches) {
+			count_text = fmt.Sprintf("%s [%d of %d]", f.Matches[f.Cursor], f.Cursor, len(f.Matches))
 		} else {
-			count_text = strconv.Itoa(len(f.matches))
+			count_text = strconv.Itoa(len(f.Matches))
 		}
 	}
 

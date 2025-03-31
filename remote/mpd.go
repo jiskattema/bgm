@@ -1,4 +1,4 @@
-package main
+package remote
 
 import (
 	//"encoding/json"
@@ -6,51 +6,32 @@ import (
 	"strings"
 
 	"github.com/fhs/gompd/v2/mpd"
+
+	"git.sr.ht/~rockorager/vaxis/vxfw"
 )
-
-var MpdFilters = [6]*Filter{
-	{Label: "Artist"},
-	{Label: "Album"},
-	{Label: "Track"},
-	{Label: "Title"},
-	{Label: "Label"},
-	{Label: "Date"},
-}
-
-type tag_query struct {
-	tag   string
-	op    string
-	query string
-}
-
-type mpd_query struct {
-	query_id    int
-	tag         string
-	constraints []tag_query
-}
-
-type mpd_result struct {
-	result_id int
-	result    []string
-}
 
 // struct to bundle access to the MPD daemon
 type MpdRemote struct {
 	lastQuery int
-	chQuery   chan mpd_query
-	chResult  chan mpd_result
+	chQuery   chan Query
+	app       *vxfw.App
 }
 
-func (m *MpdRemote) newQueryId() int {
+func (m *MpdRemote) PostQuery(tag string, constraints []Constraint) int {
 	qid := m.lastQuery + 1
 	m.lastQuery += 1
+
+	m.chQuery <- Query{
+		Query_id:    qid,
+		Tag:         tag,
+		Constraints: constraints,
+	}
 	return qid
 }
 
 func (m *MpdRemote) Dial() {
 	// setup up channels
-	m.chQuery = make(chan mpd_query, 10)
-	m.chResult = make(chan mpd_result, 10)
+	m.chQuery = make(chan Query, 10)
 
 	illegalChars := strings.NewReplacer("'", `\'`, `"`, `\"`)
 
@@ -68,12 +49,12 @@ func (m *MpdRemote) Dial() {
 			ccount := 0
 
 			sb.WriteString("(")
-			for _, tq := range q.constraints {
-				if tq.query != "" {
+			for _, constraint := range q.Constraints {
+				if constraint.Query != "" {
 					if ccount > 0 {
 						sb.WriteString(" AND ")
 					}
-					sb.WriteString("(" + tq.tag + " " + tq.op + " '" + illegalChars.Replace(tq.query) + "')")
+					sb.WriteString("(" + constraint.Tag + " " + constraint.Op + " '" + illegalChars.Replace(constraint.Query) + "')")
 					ccount += 1
 				}
 			}
@@ -82,24 +63,30 @@ func (m *MpdRemote) Dial() {
 			var lines []string
 
 			if ccount > 0 {
-				lines, err = conn.List(q.tag, sb.String())
+				lines, err = conn.List(q.Tag, sb.String())
 			} else {
-				lines, err = conn.List(q.tag)
+				lines, err = conn.List(q.Tag)
 			}
 
 			if err != nil {
 				log.Printf("Failed: %s", sb.String())
 				log.Fatalf("MPD error: %v", err)
 			}
-			m.chResult <- mpd_result{
-				result_id: q.query_id,
-				result:    lines,
-			}
+			// TODO: use vx.PostCommand
+			m.app.PostEvent(Result{
+				Result_id: q.Query_id,
+				Result:    lines,
+			})
 		}
-		close(m.chResult)
 	}()
 }
 
 func (m *MpdRemote) HangUp() {
 	close(m.chQuery)
+}
+
+func New(app *vxfw.App) *MpdRemote {
+	return &MpdRemote{
+		app: app,
+	}
 }
