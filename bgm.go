@@ -50,7 +50,7 @@ func main() {
 	defer mpd_remote.HangUp()
 
 	// The widgets need a way to send commands to the remote
-	newroot := root.New(mpd_remote)
+	newroot := root.New(mpd_remote, app)
 
 	// Kick off the main loop
 	app.Run(newroot)

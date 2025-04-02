@@ -22,7 +22,7 @@ type Search struct {
 }
 
 func New() *Search{
-	filters := make([]*Filter, len(remote.Tags))
+	var filters []*Filter
 	for _, name:= range(remote.Tags) {
 		filters = append(
 			filters,
@@ -181,23 +181,26 @@ func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 func (w *Search) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	s := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, w)
 
+	panel_size := vxfw.Size{Width: ctx.Max.Width, Height: 1}
+
+	// filters
+	panel_size.Height = 1
 	for pos, filter := range w.Filters {
-		surf, err := filter.Draw(ctx)
+		surf1, err := filter.Draw(vxfw.DrawContext{Min: panel_size, Max: panel_size, Characters: ctx.Characters})
 		if err != nil {
 			return s, err
 		}
-		s.AddChild(0, pos, surf)
+		s.AddChild(0, pos, surf1)
 	}
 
-	panel_size := vxfw.Size{Width: ctx.Max.Width, Height: 1}
 
 	// full item list
 	panel_size.Height = ctx.Max.Height - uint16(len(w.Filters)) - 1
-	s, err := w.list.Draw(vxfw.DrawContext{Min: panel_size, Max: panel_size, Characters: ctx.Characters})
+	surf2, err := w.list.Draw(vxfw.DrawContext{Min: panel_size, Max: panel_size, Characters: ctx.Characters})
 	if err != nil {
 		return s, err
 	}
-	s.AddChild(0, len(w.Filters), s)
+	s.AddChild(0, len(w.Filters), surf2)
 
 	return s, nil
 }

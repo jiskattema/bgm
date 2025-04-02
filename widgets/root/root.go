@@ -13,13 +13,15 @@ type Root struct {
 	input   *textfield.TextField
 	search  *search.Search
 	remote  remote.Remote
+	app     *vxfw.App
 }
 
-func New(remote remote.Remote) *Root {
+func New(remote remote.Remote, app *vxfw.App) *Root {
 	return &Root{
 		input:   textfield.New(),
 		search:  search.New(),
 		remote:  remote,
+		app:     app,
 	}
 }
 
