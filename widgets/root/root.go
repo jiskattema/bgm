@@ -1,6 +1,7 @@
 package root
 
 import (
+	"log"
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
 	"git.sr.ht/~rockorager/vaxis/vxfw/textfield"
@@ -10,37 +11,69 @@ import (
 
 type Root struct {
 	// The content of the widget
-	input   *textfield.TextField
-	search  *search.Search
+	input   textfield.TextField
+	search  search.Search
 	remote  remote.Remote
+	app     *vxfw.App 
+
+	routes   map[string]vxfw.Widget
 }
 
-func New(remote remote.Remote) *Root {
-	return &Root{
-		input:   textfield.New(),
-		search:  search.New(),
+func New(remote remote.Remote, app *vxfw.App) *Root {
+	root := &Root{
 		remote:  remote,
+		app: app,
+		routes: make(map[string]vxfw.Widget),
 	}
+
+	root.search.Init()
+	root.addRoute("search", root.search.Entry)
+	root.addRoute("command", &root.input)
+
+	return root
+}
+
+func (r *Root) Navigate(route string) (vxfw.Command, error) {
+  w, ok := r.routes[route]
+  if ok {
+	print("navigating to", route)
+	return []vxfw.Command{
+	  	vxfw.FocusWidgetCmd(w),
+		vxfw.RedrawCmd{},
+	  }, nil 
+  } else {
+	log.Fatalf("Route not defined: %v", route)
+	return nil, nil
+  }
+}
+
+func (r *Root) addRoute(route string, widget vxfw.Widget) {
+  r.routes[route] = widget
 }
 
 func (r *Root) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	switch ev := ev.(type) {
 	case vaxis.Key:
+		// 1 : quit
+		if ev.Matches('1') {
+			return r.Navigate("search")
+		}
 		// Ctrl-C : quit
 		if ev.Matches('c', vaxis.ModCtrl) {
 			return vxfw.QuitCmd{}, nil
 		}
 		// / : search
 		if ev.Matches(':') {
-			// Set callback
-			r.input.OnSubmit = func(line string) (vxfw.Command, error) {
-				return vxfw.FocusWidgetCmd(r), nil
-			}
-			// Focus the input widget
+			// Prepare commandline
 			r.input.Reset()
 			r.input.InsertStringAtCursor("hello world")
-			return vxfw.FocusWidgetCmd(r.input), nil
+			r.input.OnSubmit = func(line string) (vxfw.Command, error) {
+				return r.Navigate("search")
+			}
+			// Focus the input widget
+			return r.Navigate("command")
 		}
+		return vxfw.RedrawCmd{}, nil
 	}
 	return nil, nil
 }

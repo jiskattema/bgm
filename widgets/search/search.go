@@ -1,7 +1,7 @@
 package search
 
 import (
-	"reflect"
+	// "reflect"
 
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
@@ -14,195 +14,129 @@ import (
 var items []string
 
 type Search struct {
+	Entry  vxfw.Widget 
 	// The content of the widget
-	Filters []*Filter
 	list    list.Dynamic
 	cursor  int
 	remote  remote.Remote
 }
 
-func New() *Search{
-	filters := make([]*Filter, len(remote.Tags))
-	for _, name:= range(remote.Tags) {
-		filters = append(
-			filters,
-			&Filter{Label: name},
-		)
+func (r *Search) Init() {
+	r.list = list.Dynamic{
+		Builder:              getWidget,
+		DrawCursor:           false,
+		Gap:                  0,
+		// DisableEventHandlers: true,
 	}
-
-	s := &Search{
-		list: list.Dynamic{
-			Builder:              getWidget,
-			DrawCursor:           false,
-			Gap:                  0,
-			DisableEventHandlers: true,
-		},
-		Filters: filters,
-	}
-
-	return s
+	r.Entry = &r.list
 }
 
-// Noop for text
 func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	switch ev := ev.(type) {
 	case vaxis.Key:
-		// Ctrl-u : half a page up
-		if ev.Matches('u', vaxis.ModCtrl) {
-			if r.cursor > 10 {
-				r.cursor -= 10
-			} else {
-				r.cursor = 0
-			}
-		}
-		// Ctrl-d : half a page down
-		if ev.Matches('d', vaxis.ModCtrl) {
-			if r.cursor < len(r.Filters)-11 {
-				r.cursor += 10
-			} else {
-				r.cursor = len(r.Filters) - 1
-			}
-		}
-		// j : down
-		if ev.Matches('j') || ev.Matches(vaxis.KeyDown) {
-			if r.cursor < len(r.Filters)-1 {
-				r.cursor += 1
-			}
-		}
-		// G : go to bottom
-		if ev.Matches('G') || ev.Matches(vaxis.KeyEnd) {
-			r.cursor = len(r.Filters) - 1
-		}
-		// k : up
-		if ev.Matches('k') || ev.Matches(vaxis.KeyUp) {
-			if r.cursor > 0 {
-				r.cursor -= 1
-			}
-		}
-		// g : go to top
-		if ev.Matches('g') || ev.Matches(vaxis.KeyHome) {
-			r.cursor = 0
-		}
 		// Ctrl-p : move filter up
 		if ev.Matches('p', vaxis.ModCtrl) {
 			if r.cursor > 0 {
-				s := reflect.Swapper(r.Filters)
-				s(r.cursor-1, r.cursor)
+				// s := reflect.Swapper()
+				// s(r.cursor-1, r.cursor)
 				r.cursor -= 1
 			}
 		}
-		// Ctrl-n : move filter down
-		if ev.Matches('n', vaxis.ModCtrl) {
-			if r.cursor < len(r.Filters)-1 {
-				s := reflect.Swapper(r.Filters)
-				s(r.cursor, r.cursor+1)
-				r.cursor += 1
-			}
-		}
-		// Ctrl-t : move filter to top
-		if ev.Matches('t', vaxis.ModCtrl) {
-			s := reflect.Swapper(r.Filters)
-			for p := r.cursor; p > 0; p -= 1 {
-				s(p, p-1)
-			}
-			r.cursor = 0
-		}
-		// Ctrl-b : move filter to bottom
-		if ev.Matches('b', vaxis.ModCtrl) {
-			s := reflect.Swapper(r.Filters)
-			for p := r.cursor; p < len(r.Filters)-1; p += 1 {
-				s(p, p+1)
-			}
-		}
-		// Enter : show matches for current filter in bottom pane
-		if ev.Matches(vaxis.KeyEnter) {
-			items = r.Filters[r.cursor].Matches[:]
-			r.list.SetCursor(0)
-		}
-		// ] : select next match
-		if ev.Matches(']') {
-			cursor := r.Filters[r.cursor].Cursor + 1
-			if cursor >= len(r.Filters[r.cursor].Matches) {
-				cursor = -1
-			}
-			r.Filters[r.cursor].Cursor = cursor
-		}
-		// [ : select previous match
-		if ev.Matches('[') {
-			cursor := r.Filters[r.cursor].Cursor - 1
-			if cursor < -1 {
-				cursor = len(r.Filters[r.cursor].Matches) - 1
-			}
-			r.Filters[r.cursor].Cursor = cursor
-		}
-		// action on current filter
-		if ev.Matches(' ') {
-			// create tag + query pairs for each filter up-to and including the cursor
-			constraints := make([]remote.Constraint, r.cursor+1)
-			for i := 0; i <= r.cursor; i++ {
-				f := r.Filters[i]
-				if f.Cursor >= 0 && len(f.Matches) > f.Cursor {
-					// exact match of value at cursor
-					constraints = append(constraints, remote.Constraint{
-						Tag:   f.Label,
-						Op:    "==",
-						Query: f.Matches[f.Cursor],
-					})
-				} else {
-					// search for value using 'contains'
-					constraints = append(constraints, remote.Constraint{
-						Tag:   f.Label,
-						Op:    "contains",
-						Query: f.Value,
-					})
-				}
-			}
+		// // Ctrl-n : move filter down
+		// if ev.Matches('n', vaxis.ModCtrl) {
+		// 	if r.cursor < len(r.Filters)-1 {
+		// 		s := reflect.Swapper(r.Filters)
+		// 		s(r.cursor, r.cursor+1)
+		// 		r.cursor += 1
+		// 	}
+		// }
+		// // Ctrl-t : move filter to top
+		// if ev.Matches('t', vaxis.ModCtrl) {
+		// 	s := reflect.Swapper(r.Filters)
+		// 	for p := r.cursor; p > 0; p -= 1 {
+		// 		s(p, p-1)
+		// 	}
+		// 	r.cursor = 0
+		// }
+		// // Ctrl-b : move filter to bottom
+		// if ev.Matches('b', vaxis.ModCtrl) {
+		// 	s := reflect.Swapper(r.Filters)
+		// 	for p := r.cursor; p < len(r.Filters)-1; p += 1 {
+		// 		s(p, p+1)
+		// 	}
+		// }
+		// // Enter : show matches for current filter in bottom pane
+		// if ev.Matches(vaxis.KeyEnter) {
+		// 	items = r.Filters[r.cursor].Matches[:]
+		// 	r.list.SetCursor(0)
+		// }
+		// // ] : select next match
+		// if ev.Matches(']') {
+		// 	cursor := r.Filters[r.cursor].Cursor + 1
+		// 	if cursor >= len(r.Filters[r.cursor].Matches) {
+		// 		cursor = -1
+		// 	}
+		// 	r.Filters[r.cursor].Cursor = cursor
+		// }
+		// // [ : select previous match
+		// if ev.Matches('[') {
+		// 	cursor := r.Filters[r.cursor].Cursor - 1
+		// 	if cursor < -1 {
+		// 		cursor = len(r.Filters[r.cursor].Matches) - 1
+		// 	}
+		// 	r.Filters[r.cursor].Cursor = cursor
+		// }
+		// // action on current filter
+		// if ev.Matches(' ') {
+		// 	// create tag + query pairs for each filter up-to and including the cursor
+		// 	constraints := make([]remote.Constraint, r.cursor+1)
+		// 	for i := 0; i <= r.cursor; i++ {
+		// 		f := r.Filters[i]
+		// 		if f.Cursor >= 0 && len(f.Matches) > f.Cursor {
+		// 			// exact match of value at cursor
+		// 			constraints = append(constraints, remote.Constraint{
+		// 				Tag:   f.Label,
+		// 				Op:    "==",
+		// 				Query: f.Matches[f.Cursor],
+		// 			})
+		// 		} else {
+		// 			// search for value using 'contains'
+		// 			constraints = append(constraints, remote.Constraint{
+		// 				Tag:   f.Label,
+		// 				Op:    "contains",
+		// 				Query: f.Value,
+		// 			})
+		// 		}
+		// 	}
 
-			// fire-off a query for the current Filter
-			filter := r.Filters[r.cursor]
-			filter.Current_query = r.remote.PostQuery(filter.Label, constraints)
-		}
-		// Tab : focus on bottom panel
-		if ev.Matches(vaxis.KeyTab) {
-			return vxfw.FocusWidgetCmd(&r.list), nil
-		}
-		// Esc : focus on top panel
-		if ev.Matches(vaxis.KeyEsc) {
-			return vxfw.FocusWidgetCmd(r), nil
-		}
-	}
-	for pos, filter := range r.Filters {
-		filter.Active = (pos == r.cursor)
+		// 	// fire-off a query for the current Filter
+		// 	filter := r.Filters[r.cursor]
+		// 	filter.Current_query = r.remote.PostQuery(filter.Label, constraints)
+		// }
 	}
 
 	return vxfw.RedrawCmd{}, nil
 }
 
 func (w *Search) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
-	s := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, w)
+	surf := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, w)
 
-	for pos, filter := range w.Filters {
-		surf, err := filter.Draw(ctx)
-		if err != nil {
-			return s, err
-		}
-		s.AddChild(0, pos, surf)
-	}
-
-	panel_size := vxfw.Size{Width: ctx.Max.Width, Height: 1}
-
-	// full item list
-	panel_size.Height = ctx.Max.Height - uint16(len(w.Filters)) - 1
-	s, err := w.list.Draw(vxfw.DrawContext{Min: panel_size, Max: panel_size, Characters: ctx.Characters})
+	subsurf, err := w.list.Draw(ctx)
 	if err != nil {
-		return s, err
+		print("Error!")
+		return surf, err
 	}
-	s.AddChild(0, len(w.Filters), s)
+	surf.AddChild(0, 0, subsurf)
 
-	return s, nil
+	return surf, nil
 }
 
 func getWidget(i uint, cursor uint) vxfw.Widget {
+    if i>0 && i < 10 {
+	  return &text.Text{
+		  Content: "Here we go again",
+	  }
+	}
 	if i >= uint(len(items)) {
 		return nil
 	}
