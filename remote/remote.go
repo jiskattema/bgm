@@ -22,7 +22,3 @@ type Remote interface {
 	HangUp()
 	PostQuery(tag string, constraints []Constraint) int
 }
-
-var Tags = [6]string {
-	"Artist", "Album", "Track", "Title", "Label", "Date",
-}

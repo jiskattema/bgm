@@ -15,32 +15,30 @@ var items []string
 
 type Search struct {
 	// The content of the widget
-	Filters []*Filter
+	Filters []Filter
 	list    list.Dynamic
 	cursor  int
 	remote  remote.Remote
 }
 
-func New() *Search{
-	var filters []*Filter
-	for _, name:= range(remote.Tags) {
-		filters = append(
-			filters,
-			&Filter{Label: name},
-		)
-	}
-
-	s := &Search{
+func New(remote remote.Remote) *Search{
+	return &Search{
 		list: list.Dynamic{
 			Builder:              getWidget,
-			DrawCursor:           false,
+			DrawCursor:           true,
 			Gap:                  0,
-			DisableEventHandlers: true,
+			DisableEventHandlers: false,
 		},
-		Filters: filters,
+		Filters: []Filter{
+			{Label:"Artist"},
+			{Label:"Album"},
+			{Label:"Track"},
+			{Label:"Title"},
+			{Label:"Label"},
+			{Label:"Date"},
+		},
+		remote: remote,
 	}
-
-	return s
 }
 
 // Noop for text
@@ -171,8 +169,8 @@ func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 			return vxfw.FocusWidgetCmd(r), nil
 		}
 	}
-	for pos, filter := range r.Filters {
-		filter.Active = (pos == r.cursor)
+	for pos, _ := range r.Filters {
+		r.Filters[pos].Active = (pos == r.cursor)
 	}
 
 	return vxfw.RedrawCmd{}, nil

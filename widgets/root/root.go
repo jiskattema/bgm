@@ -19,7 +19,7 @@ type Root struct {
 func New(remote remote.Remote, app *vxfw.App) *Root {
 	return &Root{
 		input:   textfield.New(),
-		search:  search.New(),
+		search:  search.New(remote),
 		remote:  remote,
 		app:     app,
 	}
@@ -28,6 +28,10 @@ func New(remote remote.Remote, app *vxfw.App) *Root {
 func (r *Root) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	switch ev := ev.(type) {
 	case vaxis.Key:
+		// 1 : Search panel
+		if ev.Matches('1') {
+			return vxfw.FocusWidgetCmd(r.search), nil
+		}
 		// Ctrl-C : quit
 		if ev.Matches('c', vaxis.ModCtrl) {
 			return vxfw.QuitCmd{}, nil
