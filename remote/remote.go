@@ -1,5 +1,12 @@
 package remote
 
+type QueryType int
+
+const (
+	Songs QueryType = iota
+	Playlist
+)
+
 type Constraint struct {
 	Tag   string
 	Op    string
@@ -8,6 +15,7 @@ type Constraint struct {
 
 type Query struct {
 	Query_id    int
+	Type        QueryType
 	Tag         string
 	Constraints []Constraint
 }
@@ -18,7 +26,7 @@ type Result struct {
 }
 
 type Remote interface {
-	Dial() 
+	Dial()
 	HangUp()
-	PostQuery(tag string, constraints []Constraint) int
+	PostQuery(tpe QueryType, tag string, constraints []Constraint) int
 }

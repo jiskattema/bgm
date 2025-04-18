@@ -1,7 +1,7 @@
 package remote
 
 import (
-	//"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 
@@ -17,11 +17,12 @@ type MpdRemote struct {
 	app       *vxfw.App
 }
 
-func (m *MpdRemote) PostQuery(tag string, constraints []Constraint) int {
+func (m *MpdRemote) PostQuery(tpe QueryType, tag string, constraints []Constraint) int {
 	qid := m.lastQuery + 1
 	m.lastQuery += 1
 
 	m.chQuery <- Query{
+		Type:        tpe,
 		Query_id:    qid,
 		Tag:         tag,
 		Constraints: constraints,
@@ -45,38 +46,59 @@ func (m *MpdRemote) Dial() {
 		defer conn.Close()
 
 		for q := range m.chQuery {
-			var sb strings.Builder
-			ccount := 0
+			switch q.Type {
+			case Songs:
+				var sb strings.Builder
+				ccount := 0
 
-			sb.WriteString("(")
-			for _, constraint := range q.Constraints {
-				if constraint.Query != "" {
-					if ccount > 0 {
-						sb.WriteString(" AND ")
+				sb.WriteString("(")
+				for _, constraint := range q.Constraints {
+					if constraint.Query != "" {
+						if ccount > 0 {
+							sb.WriteString(" AND ")
+						}
+						sb.WriteString("(" + constraint.Tag + " " + constraint.Op + " '" + illegalChars.Replace(constraint.Query) + "')")
+						ccount += 1
 					}
-					sb.WriteString("(" + constraint.Tag + " " + constraint.Op + " '" + illegalChars.Replace(constraint.Query) + "')")
-					ccount += 1
 				}
-			}
-			sb.WriteString(")")
+				sb.WriteString(")")
 
-			var lines []string
+				var lines []string
 
-			if ccount > 0 {
-				lines, err = conn.List(q.Tag, sb.String())
-			} else {
-				lines, err = conn.List(q.Tag)
-			}
+				if ccount > 0 {
+					lines, err = conn.List(q.Tag, sb.String())
+				} else {
+					lines, err = conn.List(q.Tag)
+				}
 
-			if err != nil {
-				log.Printf("Failed: %s", sb.String())
-				log.Fatalf("MPD error: %v", err)
+				if err != nil {
+					log.Printf("Failed: %s", sb.String())
+					log.Fatalf("MPD error: %v", err)
+				}
+				// TODO: use vx.PostCommand
+				m.app.PostEvent(Result{
+					Result_id: q.Query_id,
+					Result:    lines,
+				})
+			case Playlist:
+				attrs, err := conn.PlaylistInfo(-1, -1)
+				if err != nil {
+					log.Printf("Failed: PlaylistInfo")
+					log.Fatalf("MPD error: %v", err)
+				}
+
+				var lines []string
+				for att := range attrs {
+					lines = append(lines, fmt.Sprintf("%v", att))
+				}
+
+				m.app.PostEvent(Result{
+					Result_id: q.Query_id,
+					Result:    lines,
+				})
+			default:
+				panic("Unknown Query")
 			}
-			// TODO: use vx.PostCommand
-			m.app.PostEvent(Result{
-				Result_id: q.Query_id,
-				Result:    lines,
-			})
 		}
 	}()
 }

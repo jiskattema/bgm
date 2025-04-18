@@ -21,7 +21,7 @@ type Search struct {
 	remote  remote.Remote
 }
 
-func New(remote remote.Remote) *Search{
+func New(remote remote.Remote) *Search {
 	return &Search{
 		list: list.Dynamic{
 			Builder:              getWidget,
@@ -30,12 +30,12 @@ func New(remote remote.Remote) *Search{
 			DisableEventHandlers: false,
 		},
 		Filters: []Filter{
-			{Label:"Artist"},
-			{Label:"Album"},
-			{Label:"Track"},
-			{Label:"Title"},
-			{Label:"Label"},
-			{Label:"Date"},
+			{Label: "Artist"},
+			{Label: "Album"},
+			{Label: "Track"},
+			{Label: "Title"},
+			{Label: "Label"},
+			{Label: "Date"},
 		},
 		remote: remote,
 	}
@@ -158,7 +158,7 @@ func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 
 			// fire-off a query for the current Filter
 			filter := r.Filters[r.cursor]
-			filter.Current_query = r.remote.PostQuery(filter.Label, constraints)
+			filter.Current_query = r.remote.PostQuery(remote.Songs, filter.Label, constraints)
 		}
 		// Tab : focus on bottom panel
 		if ev.Matches(vaxis.KeyTab) {
@@ -191,7 +191,6 @@ func (w *Search) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 		s.AddChild(0, pos, surf1)
 	}
 
-
 	// full item list
 	panel_size.Height = ctx.Max.Height - uint16(len(w.Filters)) - 1
 	surf2, err := w.list.Draw(vxfw.DrawContext{Min: panel_size, Max: panel_size, Characters: ctx.Characters})
@@ -204,10 +203,16 @@ func (w *Search) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 }
 
 func getWidget(i uint, cursor uint) vxfw.Widget {
+	var style vaxis.Style
+	if i >= 0 && i < 10 {
+		return &text.Text{
+			Content: "We have a widget",
+			Style:   style,
+		}
+	}
 	if i >= uint(len(items)) {
 		return nil
 	}
-	var style vaxis.Style
 	if i == cursor {
 		style.Attribute = vaxis.AttrReverse
 	}
@@ -222,7 +227,6 @@ func getWidget(i uint, cursor uint) vxfw.Widget {
 		Style:   style,
 	}
 }
-
 
 // Verify we meet the Widget interface
 var _ vxfw.Widget = &Search{}
