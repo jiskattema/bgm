@@ -158,7 +158,7 @@ func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 
 			// fire-off a query for the current Filter
 			filter := r.Filters[r.cursor]
-			filter.Current_query = r.remote.PostQuery(remote.Songs, filter.Label, constraints)
+			filter.Current_query = r.remote.PostQuery(filter.Label, constraints)
 		}
 		// Tab : focus on bottom panel
 		if ev.Matches(vaxis.KeyTab) {

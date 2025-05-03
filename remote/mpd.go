@@ -1,9 +1,9 @@
 package remote
 
 import (
-	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/fhs/gompd/v2/mpd"
 
@@ -17,12 +17,11 @@ type MpdRemote struct {
 	app       *vxfw.App
 }
 
-func (m *MpdRemote) PostQuery(tpe QueryType, tag string, constraints []Constraint) int {
+func (m *MpdRemote) PostQuery(tag string, constraints []Constraint) int {
 	qid := m.lastQuery + 1
 	m.lastQuery += 1
 
 	m.chQuery <- Query{
-		Type:        tpe,
 		Query_id:    qid,
 		Tag:         tag,
 		Constraints: constraints,
@@ -45,9 +44,9 @@ func (m *MpdRemote) Dial() {
 		}
 		defer conn.Close()
 
-		for q := range m.chQuery {
-			switch q.Type {
-			case Songs:
+		for {
+			select {
+			case q := <-m.chQuery:
 				var sb strings.Builder
 				ccount := 0
 
@@ -80,24 +79,23 @@ func (m *MpdRemote) Dial() {
 					Result_id: q.Query_id,
 					Result:    lines,
 				})
-			case Playlist:
-				attrs, err := conn.PlaylistInfo(-1, -1)
+
+			case <-time.After(2 * time.Second):
+				songList, err := conn.PlaylistInfo(-1, -1)
 				if err != nil {
 					log.Printf("Failed: PlaylistInfo")
 					log.Fatalf("MPD error: %v", err)
 				}
 
-				var lines []string
-				for att := range attrs {
-					lines = append(lines, fmt.Sprintf("%v", att))
+				songs := make([]Attrs, 0, len(songList))
+				for _, s := range songList {
+					song := make(Attrs)
+					for k, v := range(s) {
+						song[k] = v
+					}
+					songs = append(songs, song)
 				}
-
-				m.app.PostEvent(Result{
-					Result_id: q.Query_id,
-					Result:    lines,
-				})
-			default:
-				panic("Unknown Query")
+				m.app.PostEvent(songs)
 			}
 		}
 	}()

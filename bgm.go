@@ -12,27 +12,6 @@ import (
 	"ash/bgm/remote"
 )
 
-// func MyDraw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
-// 	// check if there are updates from the mpd_remote
-// Poll:
-// 	for {
-// 		select {
-// 		case r := <-mpd_remote.chResult:
-// 			for _, filter := range b.Filters {
-// 				if filter.Current_query == r.result_id {
-// 					filter.Matches = r.result
-// 					filter.Cursor = -1
-// 				}
-// 			}
-// 		default:
-// 			break Poll
-// 		}
-// 	}
-
-// 	root := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, b)
-// 	return root, nil
-// }
-
 var app *vxfw.App
 
 func main() {

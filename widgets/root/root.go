@@ -39,6 +39,9 @@ func New(remote remote.Remote, app *vxfw.App) *Root {
 
 func (r *Root) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	switch ev := ev.(type) {
+	case []remote.Attrs:
+		r.queue.UpdateFromRemote(ev)
+		return vxfw.RedrawCmd{}, nil
 	case vaxis.Key:
 		// 1 : Search panel
 		if ev.Matches('1') {

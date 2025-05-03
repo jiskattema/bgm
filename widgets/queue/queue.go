@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"fmt"
 	"ash/bgm/remote"
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
@@ -8,15 +9,17 @@ import (
 	"git.sr.ht/~rockorager/vaxis/vxfw/text"
 )
 
-var items []string
+// MPD uses https://mpd.readthedocs.io/en/latest/protocol.html#tags
+var items []remote.Attrs
 
 type Queue struct {
-	remote *remote.Remote
+	remote remote.Remote
 	list   list.Dynamic
 }
 
 func New(remote remote.Remote) *Queue {
 	return &Queue{
+		remote: remote,
 		list: list.Dynamic{
 			Builder:              getWidget,
 			DrawCursor:           true,
@@ -24,6 +27,10 @@ func New(remote remote.Remote) *Queue {
 			DisableEventHandlers: false,
 		},
 	}
+}
+
+func (q *Queue) UpdateFromRemote(newQueue []remote.Attrs) {
+	items = newQueue
 }
 
 func (q *Queue) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
@@ -45,24 +52,14 @@ func (q *Queue) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 
 func getWidget(i uint, cursor uint) vxfw.Widget {
 	var style vaxis.Style
-	if i >= 0 && i < 10 {
-		return &text.Text{
-			Content: "We have a widget",
-			Style:   style,
-		}
-	}
 	if i >= uint(len(items)) {
 		return nil
 	}
 	if i == cursor {
 		style.Attribute = vaxis.AttrReverse
 	}
-	var display_text string
-	if items[i] == "" {
-		display_text = "[Unknown]"
-	} else {
-		display_text = items[i]
-	}
+	display_text := fmt.Sprintf("%2s ~ %10s ~ %30s", items[i]["Track"], items[i]["Artist"], items[i]["Title"])
+
 	return &text.Text{
 		Content: display_text,
 		Style:   style,
