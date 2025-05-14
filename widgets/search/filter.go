@@ -11,16 +11,6 @@ import (
 	"git.sr.ht/~rockorager/vaxis/vxfw"
 )
 
-var InactiveFilter = vaxis.Style{
-	Foreground: vaxis.HexColor(0x00ffff),
-	Background: vaxis.HexColor(0xff0fff),
-}
-
-var ActiveFilter = vaxis.Style{
-	Foreground: vaxis.HexColor(0x000000),
-	Background: vaxis.HexColor(0xffffff),
-}
-
 type Filter struct {
 	Label         string
 	Value         string
