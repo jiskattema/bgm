@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"ash/bgm/base"
 	"github.com/fhs/gompd/v2/mpd"
 
 	"git.sr.ht/~rockorager/vaxis/vxfw"
@@ -13,15 +14,15 @@ import (
 // struct to bundle access to the MPD daemon
 type MpdRemote struct {
 	lastQuery int
-	chQuery   chan Query
+	chQuery   chan base.Query
 	app       *vxfw.App
 }
 
-func (m *MpdRemote) PostQuery(tag string, constraints []Constraint) int {
+func (m *MpdRemote) PostQuery(tag string, constraints []base.Constraint) int {
 	qid := m.lastQuery + 1
 	m.lastQuery += 1
 
-	m.chQuery <- Query{
+	m.chQuery <- base.Query{
 		Query_id:    qid,
 		Tag:         tag,
 		Constraints: constraints,
@@ -31,7 +32,7 @@ func (m *MpdRemote) PostQuery(tag string, constraints []Constraint) int {
 
 func (m *MpdRemote) Dial() {
 	// setup up channels
-	m.chQuery = make(chan Query, 10)
+	m.chQuery = make(chan base.Query, 10)
 
 	illegalChars := strings.NewReplacer("'", `\'`, `"`, `\"`)
 
@@ -52,11 +53,11 @@ func (m *MpdRemote) Dial() {
 
 				sb.WriteString("(")
 				for _, constraint := range q.Constraints {
-					if constraint.Query != "" {
+					if constraint.Value != "" {
 						if ccount > 0 {
 							sb.WriteString(" AND ")
 						}
-						sb.WriteString("(" + constraint.Tag + " " + constraint.Op + " '" + illegalChars.Replace(constraint.Query) + "')")
+						sb.WriteString("(" + constraint.Tag + " " + constraint.Op + " '" + illegalChars.Replace(constraint.Value) + "')")
 						ccount += 1
 					}
 				}
@@ -75,8 +76,8 @@ func (m *MpdRemote) Dial() {
 					log.Fatalf("MPD error: %v", err)
 				}
 				// TODO: use vx.PostCommand
-				m.app.PostEvent(Result{
-					Result_id: q.Query_id,
+				m.app.PostEvent(base.Result{
+					Query_id:  q.Query_id,
 					Result:    lines,
 				})
 
@@ -87,9 +88,9 @@ func (m *MpdRemote) Dial() {
 					log.Fatalf("MPD error: %v", err)
 				}
 
-				songs := make([]Attrs, 0, len(songList))
+				songs := make(base.Playlist, 0, len(songList))
 				for _, s := range songList {
-					song := make(Attrs)
+					song := make(base.Attrs)
 					for k, v := range(s) {
 						song[k] = v
 					}

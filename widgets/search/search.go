@@ -2,6 +2,7 @@ package search
 
 import (
 	// "reflect"
+	"ash/bgm/base"
 
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
@@ -15,15 +16,16 @@ var filters = []string{
 	"Artist", "Album", "Track", "Title", "Label", "Date",
 }
 
-var songs []remote.Attrs
+var songs []base.Attrs
 
 type Search struct {
 	filters list.Dynamic
 	songs   list.Dynamic
 	remote  remote.Remote
+	app     *vxfw.App
 }
 
-func New(remote remote.Remote) *Search {
+func New(remote remote.Remote, app *vxfw.App) *Search {
 	return &Search{
 		filters: list.Dynamic{
 			Builder:              formatFilter,
@@ -33,27 +35,40 @@ func New(remote remote.Remote) *Search {
 		},
 		songs: list.Dynamic{
 			Builder:              formatSong,
-			DrawCursor:           true,
+			DrawCursor:           false,
 			Gap:                  0,
 			DisableEventHandlers: false,
 		},
 		remote: remote,
+		app:    app,
 	}
+}
+
+func setFilter(q, a string) {
 }
 
 // Noop for text
 func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	switch ev := ev.(type) {
+	case vaxis.FocusIn:
+		return vxfw.FocusWidgetCmd(&r.filters), nil
 	case vaxis.Key:
+		// Enter : set filter
+		if ev.Matches(vaxis.KeyEnter) {
+			r.app.PostEvent(base.Question{
+				Question: filters[r.filters.Cursor()],
+				Callback: setFilter,
+			})
+		}
 
 		// // Ctrl-u : half a page up
-		if ev.Matches('u', vaxis.ModCtrl) {
+		// if ev.Matches('u', vaxis.ModCtrl) {
 		// 	if r.cursor > 10 {
 		// 		r.cursor -= 10
 		// 	} else {
 		// 		r.cursor = 0
 		// 	}
-		}
+		// }
 		// // Ctrl-d : half a page down
 		// if ev.Matches('d', vaxis.ModCtrl) {
 		// 	if r.cursor < len(r.Filters)-11 {
@@ -138,22 +153,22 @@ func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 		// // action on current filter
 		// if ev.Matches(' ') {
 		// 	// create tag + query pairs for each filter up-to and including the cursor
-		// 	constraints := make([]remote.Constraint, r.cursor+1)
+		// 	constraints := make([]base.Constraint, r.cursor+1)
 		// 	for i := 0; i <= r.cursor; i++ {
 		// 		f := r.Filters[i]
 		// 		if f.Cursor >= 0 && len(f.Matches) > f.Cursor {
 		// 			// exact match of value at cursor
-		// 			constraints = append(constraints, remote.Constraint{
+		// 			constraints = append(constraints, base.Constraint{
 		// 				Tag:   f.Label,
 		// 				Op:    "==",
-		// 				Query: f.Matches[f.Cursor],
+		// 				Value: f.Matches[f.Cursor],
 		// 			})
 		// 		} else {
 		// 			// search for value using 'contains'
-		// 			constraints = append(constraints, remote.Constraint{
+		// 			constraints = append(constraints, base.Constraint{
 		// 				Tag:   f.Label,
 		// 				Op:    "contains",
-		// 				Query: f.Value,
+		// 				Value: f.Value,
 		// 			})
 		// 		}
 		// 	}

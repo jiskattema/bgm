@@ -1,6 +1,7 @@
 package root
 
 import (
+	"ash/bgm/base"
 	"ash/bgm/remote"
 	"ash/bgm/widgets/queue"
 	"ash/bgm/widgets/search"
@@ -21,7 +22,6 @@ type Root struct {
 	input  *textfield.TextField
 	search *search.Search
 	queue  *queue.Queue
-	remote remote.Remote
 	app    *vxfw.App
 	state  BgmState
 }
@@ -29,58 +29,74 @@ type Root struct {
 func New(remote remote.Remote, app *vxfw.App) *Root {
 	return &Root{
 		input:  textfield.New(),
-		search: search.New(remote),
+		search: search.New(remote, app),
 		queue:  queue.New(remote),
-		remote: remote,
 		app:    app,
 		state:  Searching,
 	}
 }
 
+func (r Root) currentWidget() vxfw.Widget {
+	switch r.state {
+	case Searching:
+		return r.search
+	case Queueing:
+		return r.queue
+	}
+	return &r
+}
+
 func (r *Root) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command, error) {
 	switch ev := ev.(type) {
-	case []remote.Attrs:
+	case base.Question:
+		return r.ask(ev)
+	case base.Playlist:
 		r.queue.UpdateFromRemote(ev)
 		return vxfw.RedrawCmd{}, nil
 	case vaxis.Key:
 		// 1 : Search panel
 		if ev.Matches('1') {
 			r.state = Searching
-			return vxfw.FocusWidgetCmd(r.search), nil
+			return vxfw.FocusWidgetCmd(r.currentWidget()), nil
 		}
 		// 2 : Play queue
 		if ev.Matches('2') {
 			r.state = Queueing
-			return vxfw.FocusWidgetCmd(r.queue), nil
+			return vxfw.FocusWidgetCmd(r.currentWidget()), nil
 		}
 		// Ctrl-C : quit
 		if ev.Matches('c', vaxis.ModCtrl) {
 			return vxfw.QuitCmd{}, nil
 		}
-		// / : search
+		// : : command
 		if ev.Matches(':') {
 			// Set callback
 			r.input.OnSubmit = func(line string) (vxfw.Command, error) {
-				return vxfw.FocusWidgetCmd(r), nil
+				return vxfw.FocusWidgetCmd(r.currentWidget()), nil
 			}
 			// Focus the input widget
 			r.input.Reset()
-			r.input.InsertStringAtCursor("hello world")
+			r.input.InsertStringAtCursor("command")
 			return vxfw.FocusWidgetCmd(r.input), nil
 		}
 	}
 	return nil, nil
 }
 
-func (r *Root) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
-	var mainWidget vxfw.Widget
-
-	switch r.state {
-	case Searching:
-		mainWidget = r.search
-	case Queueing:
-		mainWidget = r.queue
+func (r Root) ask(what base.Question) (vxfw.Command, error) {
+	// Set callback
+	r.input.OnSubmit = func(answer string) (vxfw.Command, error) {
+		what.Callback(what.Question, answer)
+		return vxfw.FocusWidgetCmd(r.currentWidget()), nil
 	}
+	// Focus the input widget
+	r.input.Reset()
+	r.input.InsertStringAtCursor(what.Question)
+	return vxfw.FocusWidgetCmd(r.input), nil
+}
+
+func (r *Root) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
+	mainWidget := r.currentWidget()
 
 	s := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, r)
 

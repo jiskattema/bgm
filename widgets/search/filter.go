@@ -47,16 +47,10 @@ func (f *Filter) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 	chars := ctx.Characters(full_text)
 	cells := make([]vaxis.Cell, 0, len(chars))
 
-	style := InactiveFilter
-	if f.Active {
-		style = ActiveFilter
-	}
-
 	var w int
 	for _, char := range chars {
 		cell := vaxis.Cell{
 			Character: char,
-			Style:     style,
 		}
 		cells = append(cells, cell)
 		w += char.Width

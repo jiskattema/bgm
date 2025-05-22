@@ -1,8 +1,9 @@
 package queue
 
 import (
-	"fmt"
+	"ash/bgm/base"
 	"ash/bgm/remote"
+	"fmt"
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
 	"git.sr.ht/~rockorager/vaxis/vxfw/list"
@@ -10,7 +11,7 @@ import (
 )
 
 // MPD uses https://mpd.readthedocs.io/en/latest/protocol.html#tags
-var items []remote.Attrs
+var items base.Playlist
 
 type Queue struct {
 	remote remote.Remote
@@ -29,7 +30,7 @@ func New(remote remote.Remote) *Queue {
 	}
 }
 
-func (q *Queue) UpdateFromRemote(newQueue []remote.Attrs) {
+func (q *Queue) UpdateFromRemote(newQueue base.Playlist) {
 	items = newQueue
 }
 

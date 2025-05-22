@@ -8,8 +8,8 @@ import (
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
 
-	"ash/bgm/widgets/root"
 	"ash/bgm/remote"
+	"ash/bgm/widgets/root"
 )
 
 var app *vxfw.App
