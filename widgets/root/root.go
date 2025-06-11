@@ -7,6 +7,7 @@ import (
 	"ash/bgm/widgets/search"
 	"git.sr.ht/~rockorager/vaxis"
 	"git.sr.ht/~rockorager/vaxis/vxfw"
+	"git.sr.ht/~rockorager/vaxis/vxfw/text"
 	"git.sr.ht/~rockorager/vaxis/vxfw/textfield"
 )
 
@@ -19,20 +20,24 @@ const (
 
 type Root struct {
 	// The content of the widget
-	input  *textfield.TextField
-	search *search.Search
-	queue  *queue.Queue
-	app    *vxfw.App
-	state  BgmState
+	message      *text.Text
+	input        *textfield.TextField
+	search       *search.Search
+	queue        *queue.Queue
+	app          *vxfw.App
+	state        BgmState
+	messageModal bool
 }
 
 func New(remote remote.Remote, app *vxfw.App) *Root {
 	return &Root{
-		input:  textfield.New(),
-		search: search.New(remote, app),
-		queue:  queue.New(remote),
-		app:    app,
-		state:  Searching,
+		search:       search.New(remote, app),
+		queue:        queue.New(remote),
+		app:          app,
+		state:        Searching,
+		messageModal: false,
+		message:      text.New("Prompt me"),
+		input:        textfield.New(),
 	}
 }
 
@@ -83,21 +88,25 @@ func (r *Root) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command,
 	return nil, nil
 }
 
-func (r Root) ask(what base.Question) (vxfw.Command, error) {
+func (r *Root) ask(what base.Question) (vxfw.Command, error) {
+	// configure the messageModal
+	r.messageModal = true
+	r.message.Content = what.Prompt
+	r.input.Reset()
+	r.input.InsertStringAtCursor(what.Value)
+
 	// Set callback
 	r.input.OnSubmit = func(answer string) (vxfw.Command, error) {
-		what.Callback(what.Question, answer)
+		what.Callback(what.Key, answer)
+		r.messageModal = false
 		return vxfw.FocusWidgetCmd(r.currentWidget()), nil
 	}
-	// Focus the input widget
-	r.input.Reset()
-	r.input.InsertStringAtCursor(what.Question)
+
+	// Focus the messageModal 
 	return vxfw.FocusWidgetCmd(r.input), nil
 }
 
 func (r *Root) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
-	mainWidget := r.currentWidget()
-
 	s := vxfw.NewSurface(ctx.Max.Width, ctx.Max.Height, r)
 
 	// Add the main widget
@@ -107,6 +116,7 @@ func (r *Root) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 			Max:        vxfw.Size{Width: ctx.Max.Width, Height: ctx.Max.Height - 1},
 			Characters: ctx.Characters,
 		}
+		mainWidget := r.currentWidget()
 		surf, err := mainWidget.Draw(subcontext)
 		if err != nil {
 			return s, err
@@ -114,13 +124,19 @@ func (r *Root) Draw(ctx vxfw.DrawContext) (vxfw.Surface, error) {
 		s.AddChild(0, 0, surf)
 	}
 
-	// Add the commandline at the bottom
-	{
+	// Add the messageModal
+	if r.messageModal {
 		subcontext := vxfw.DrawContext{
 			Min:        vxfw.Size{Width: ctx.Max.Width, Height: 1},
 			Max:        vxfw.Size{Width: ctx.Max.Width, Height: 1},
 			Characters: ctx.Characters,
 		}
+		messagesurf, err := r.message.Draw(subcontext)
+		if err != nil {
+			return s, err
+		}
+		s.AddChild(0, int(s.Size.Height)-2, messagesurf)
+
 		surf, err := r.input.Draw(subcontext)
 		if err != nil {
 			return s, err

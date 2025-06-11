@@ -1,7 +1,8 @@
 package search
 
 import (
-	// "reflect"
+	"reflect"
+	// "slices"
 	"ash/bgm/base"
 
 	"git.sr.ht/~rockorager/vaxis"
@@ -12,11 +13,15 @@ import (
 	"ash/bgm/remote"
 )
 
-var filters = []string{
-	"Artist", "Album", "Track", "Title", "Label", "Date",
+var songs []base.Attrs
+
+type SearchTag struct {
+	Display string
+	Name    string
+	Value   string
 }
 
-var songs []base.Attrs
+var filters []SearchTag
 
 type Search struct {
 	filters list.Dynamic
@@ -26,6 +31,16 @@ type Search struct {
 }
 
 func New(remote remote.Remote, app *vxfw.App) *Search {
+	filters = make([]SearchTag, 0, len(base.ServerTags))
+	for _, tag := range base.ServerTags {
+		if tag.Visible {
+			filters = append(filters, SearchTag{
+				Display: tag.Display,
+				Name:    tag.Name,
+			})
+		}
+	}
+
 	return &Search{
 		filters: list.Dynamic{
 			Builder:              formatFilter,
@@ -45,6 +60,11 @@ func New(remote remote.Remote, app *vxfw.App) *Search {
 }
 
 func setFilter(q, a string) {
+	for i := range len(filters) {
+		if filters[i].Name == q {
+			filters[i].Value = a
+		}
+	}
 }
 
 // Noop for text
@@ -56,7 +76,9 @@ func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 		// Enter : set filter
 		if ev.Matches(vaxis.KeyEnter) {
 			r.app.PostEvent(base.Question{
-				Question: filters[r.filters.Cursor()],
+				Prompt:   "Enter " + filters[r.filters.Cursor()].Display,
+				Key:      filters[r.filters.Cursor()].Name,
+				Value:    filters[r.filters.Cursor()].Value,
 				Callback: setFilter,
 			})
 		}
@@ -77,58 +99,45 @@ func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 		// 		r.cursor = len(r.Filters) - 1
 		// 	}
 		// }
-		// // j : down
-		// if ev.Matches('j') || ev.Matches(vaxis.KeyDown) {
-		// 	if r.cursor < len(r.Filters)-1 {
-		// 		r.cursor += 1
-		// 	}
-		// }
 		// // G : go to bottom
 		// if ev.Matches('G') || ev.Matches(vaxis.KeyEnd) {
 		// 	r.cursor = len(r.Filters) - 1
 		// }
-		// // k : up
-		// if ev.Matches('k') || ev.Matches(vaxis.KeyUp) {
-		// 	if r.cursor > 0 {
-		// 		r.cursor -= 1
-		// 	}
-		// }
-		// // g : go to top
-		// if ev.Matches('g') || ev.Matches(vaxis.KeyHome) {
-		// 	r.cursor = 0
-		// }
 
-		// // Ctrl-p : move filter up
-		// if ev.Matches('p', vaxis.ModCtrl) {
-		// 	if r.cursor > 0 {
-		// 		s := reflect.Swapper(r.Filters)
-		// 		s(r.cursor-1, r.cursor)
-		// 		r.cursor -= 1
-		// 	}
-		// }
-		// // Ctrl-n : move filter down
-		// if ev.Matches('n', vaxis.ModCtrl) {
-		// 	if r.cursor < len(r.Filters)-1 {
-		// 		s := reflect.Swapper(r.Filters)
-		// 		s(r.cursor, r.cursor+1)
-		// 		r.cursor += 1
-		// 	}
-		// }
-		// // Ctrl-t : move filter to top
-		// if ev.Matches('t', vaxis.ModCtrl) {
-		// 	s := reflect.Swapper(r.Filters)
-		// 	for p := r.cursor; p > 0; p -= 1 {
-		// 		s(p, p-1)
-		// 	}
-		// 	r.cursor = 0
-		// }
-		// // Ctrl-b : move filter to bottom
-		// if ev.Matches('b', vaxis.ModCtrl) {
-		// 	s := reflect.Swapper(r.Filters)
-		// 	for p := r.cursor; p < len(r.Filters)-1; p += 1 {
-		// 		s(p, p+1)
-		// 	}
-		// }
+		// Ctrl-p : move filter up
+		if ev.Matches('p', vaxis.ModCtrl) {
+			c := int(r.filters.Cursor())
+			if c > 0 {
+				s := reflect.Swapper(filters)
+				s(c-1, c)
+				r.filters.SetCursor(uint(c - 1))
+			}
+		}
+		// Ctrl-n : move filter down
+		if ev.Matches('n', vaxis.ModCtrl) {
+			c := int(r.filters.Cursor())
+			if c < len(filters)-1 {
+				s := reflect.Swapper(filters)
+				s(c, c+1)
+				r.filters.SetCursor(uint(c + 1))
+			}
+		}
+		// Ctrl-t : move filter to top
+		if ev.Matches('t', vaxis.ModCtrl) {
+			c := int(r.filters.Cursor())
+			s := reflect.Swapper(filters)
+			s(c, 0)
+			r.filters.SetCursor(0)
+		}
+		// Ctrl-b : move filter to bottom
+		if ev.Matches('b', vaxis.ModCtrl) {
+			c := int(r.filters.Cursor())
+			s := reflect.Swapper(filters)
+			for c < len(filters)-1 {
+				s(c, c+1)
+				c = c + 1
+			}
+		}
 		// // Enter : show matches for current filter in bottom pane
 		// if ev.Matches(vaxis.KeyEnter) {
 		// 	items = r.Filters[r.cursor].Matches[:]
@@ -187,9 +196,6 @@ func (r *Search) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Comman
 			return vxfw.FocusWidgetCmd(&r.filters), nil
 		}
 	}
-	// for pos, _ := range r.Filters {
-	// 	r.Filters[pos].Active = (pos == r.cursor)
-	// }
 
 	return vxfw.RedrawCmd{}, nil
 }
@@ -233,15 +239,8 @@ func formatFilter(i uint, cursor uint) vxfw.Widget {
 		style.Background = vaxis.HexColor(0xff0fff)
 	}
 
-	var display_text string
-	if filters[i] == "" {
-		display_text = "[Unknown]"
-	} else {
-		display_text = filters[i]
-	}
-
 	return &text.Text{
-		Content: display_text,
+		Content: filters[i].Display + " " + filters[i].Value,
 		Style:   style,
 	}
 }
