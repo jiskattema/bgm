@@ -75,14 +75,10 @@ func (r *Root) HandleEvent(ev vaxis.Event, phase vxfw.EventPhase) (vxfw.Command,
 		}
 		// : : command
 		if ev.Matches(':') {
-			// Set callback
-			r.input.OnSubmit = func(line string) (vxfw.Command, error) {
-				return vxfw.FocusWidgetCmd(r.currentWidget()), nil
-			}
-			// Focus the input widget
-			r.input.Reset()
-			r.input.InsertStringAtCursor("command")
-			return vxfw.FocusWidgetCmd(r.input), nil
+			return r.ask(base.Question{
+				Prompt: "command",
+				Key: "command",
+			})
 		}
 	}
 	return nil, nil
@@ -97,7 +93,9 @@ func (r *Root) ask(what base.Question) (vxfw.Command, error) {
 
 	// Set callback
 	r.input.OnSubmit = func(answer string) (vxfw.Command, error) {
-		what.Callback(what.Key, answer)
+		if what.Callback != nil {
+			what.Callback(what.Key, answer)
+		}
 		r.messageModal = false
 		return vxfw.FocusWidgetCmd(r.currentWidget()), nil
 	}
